@@ -44,6 +44,6 @@ jobs:
             docker build -t endlessresearch .
             docker stop endlessresearch || true
             docker rm endlessresearch || true
-            docker run -d --name deepserper \
+            docker run -d --name endlessresearch \
               -e AIRTABLE_KEY="${{ secrets.AIRTABLE_KEY }}" \
               endlessresearch
