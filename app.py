@@ -3,71 +3,13 @@ import json,uuid
 import re,os
 from datetime import datetime
 from typing import Generator
+from pyairtable import Table
+import logging
 
-
-example=''
-if os.path.exists("result.md"):
-    with open("result.md", "r", encoding="utf-8") as f:
-        example = f.read()
-    print("[DEBUG] 成功读取 result.md 作为 example")
-
-prompt='''
-A股对不同类型龙头股有细分化的“龙系”术语体系，以下是基于市场规律和搜索结果整理的完整分类：
-
-一、按周期属性划分
-
-1. 穿越龙
-需跨越至少两个情绪周期（如高潮→冰点→新周期），具有抗跌性和市场地位重塑能力。例如断板后仍逆势连板。
-
-2. 补涨龙
-总龙头断板后出现的梯队接力股，通常具有位差优势但缺乏独立性。
-
-3. 活口龙
-旧周期退潮中未完全陨落的过渡性标的，常以N型反包形态出现。
-
-二、按市场地位划分
-
-4. 总龙头
-阶段性绝对核心，具备板块带动效应。
-
-5. 卡位龙
-在旧龙头分歧时迅速接力的新标的，常见于题材切换期
-
-6. 日内龙
-单日领涨的先锋股，多为资金情绪试探选择
-
-三、按驱动因素划分
-
-7. 行业龙
-行业绝对领导者
-
-8. 概念龙
-题材炒作核心
-
-9. 趋势龙
-依托基本面长周期走强
-
-四、技术形态划分
-
-10. 换手龙
-通过充分换手走强
-
-11. 一字龙
-连续一字涨停的通道党标的
-
-五、特殊阶段产物
-
-12. 反核龙
-地天板逆转情绪的标的
-
-13. 破局龙
-打破市场高度压制的品种
-
-{example}
-
-根据以上分类，搜索近一两周内的A股热点新闻，找出符合定义的标的并分析
-'''.format(example)
-
+logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
+AIRTABLE_KEY = os.environ.get('AIRTABLE_KEY') or 'YOUR_SECRET_API_TOKEN'
+AIRTABLE_BASE_ID = 'applo1KcfFekTkIAU'
+AIRTABLE_TABLE_NAME = 'ashare'
 
 
 class ZAIChatClient:
@@ -101,7 +43,7 @@ class ZAIChatClient:
         Yields:
             Generator that yields chunks of the response
         """
-        print("[DEBUG] stream_chat_completion called")
+        logging.info("[DEBUG] stream_chat_completion called")
         json_data = {
             'stream': True,
             'model': model,
@@ -135,14 +77,14 @@ class ZAIChatClient:
             'id': str(uuid.uuid4())
         }
 
-        print("[DEBUG] Sending POST request to:", f'{self.base_url}/api/chat/completions')
+        logging.debug("[DEBUG] Sending POST request to:", f'{self.base_url}/api/chat/completions')
         with requests.post(
             f'{self.base_url}/api/chat/completions',
             headers=self.headers,
             json=json_data,
             stream=True
         ) as response:
-            print("[DEBUG] Response status code:", response.status_code)
+            logging.debug(f"Response status code: {response.status_code}")
             response.raise_for_status()
             # Use a more sophisticated approach to track output
             last_output = ""
@@ -154,6 +96,8 @@ class ZAIChatClient:
                         data = json.loads(decoded_line[6:])
                         try:
                             content = data['data']['data']['content']
+                            if isinstance(content, dict):
+                                content = json.dumps(content, ensure_ascii=False)
                             # 移除HTML标签
                             content = re.sub(r'<summary.*?>.*?</summary>', '', content, flags=re.DOTALL)
                             text = re.sub(r'<[^>]+>', '', content)
@@ -166,7 +110,7 @@ class ZAIChatClient:
                             text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
                             
                             # 3. 处理标点符号
-                            text = re.sub(r'\s*([，。！？；：""''（）【】《》])\s*', r'\1', text)  # 中文标点
+                            text = re.sub(r'\s*([，。！？；："“''（）【】《》])\s*', r'\1', text)  # 中文标点
                             text = re.sub(r'\s*([,.!?;:"\'\\(\\)\\[\\]<>])\s*', r'\1 ', text)  # 英文标点
                             
                             # 4. 最后处理多余空格
@@ -183,7 +127,7 @@ class ZAIChatClient:
                             # (model might have restarted or modified content)
                             if i < len(last_output) * 0.8:  # Less than 80% match
                                 # Consider it a restart
-                                print("\n[DEBUG] Content restart detected")
+                                logging.debug("\n[DEBUG] Content restart detected")
                                 new_text = text
                                 output_buffer = ""
                             else:
@@ -197,11 +141,62 @@ class ZAIChatClient:
                                 output_buffer += new_text
                                 yield new_text
                         except Exception as e:
-                            print(f"[ERROR] Failed to extract content: {e}")
+                            logging.error(f"Failed to extract content: {e}")
 
 # Example usage:
-if __name__ == "__main__":
-    print("[DEBUG] Main started")
+def mission():
+    example = '无'
+    table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
+    records = table.all(sort=["-Created"], max_records=1)
+    if records and 'fields' in records[0] and 'Notes' in records[0]['fields']:
+        example = records[0]['fields']['Notes']
+        logging.debug('成功从Airtable获取example')
+    else:
+        logging.debug('Airtable无有效记录，example为空')
+
+    prompt = '''
+A股对不同类型龙头股有细分化的"龙系"术语体系，以下是基于市场规律和搜索结果整理的完整分类：
+一、按周期属性划分
+1. 穿越龙
+需跨越至少两个情绪周期（如高潮→冰点→新周期），具有抗跌性和市场地位重塑能力。例如断板后仍逆势连板。
+2. 补涨龙
+总龙头断板后出现的梯队接力股，通常具有位差优势但缺乏独立性。
+3. 活口龙
+旧周期退潮中未完全陨落的过渡性标的，常以N型反包形态出现。
+二、按市场地位划分
+4. 总龙头
+阶段性绝对核心，具备板块带动效应。
+5. 卡位龙
+在旧龙头分歧时迅速接力的新标的，常见于题材切换期
+6. 日内龙
+单日领涨的先锋股，多为资金情绪试探选择
+三、按驱动因素划分
+7. 行业龙
+行业绝对领导者
+8. 概念龙
+题材炒作核心
+9. 趋势龙
+依托基本面长周期走强
+四、情绪划分
+10. 换手龙
+通过充分换手走强
+11. 一字龙
+连续一字涨停的通道党标的
+五、特殊阶段产物
+12. 反核龙
+地天板逆转情绪的标的
+13. 破局龙
+打破市场高度压制的品种
+
+参考：
+{example}
+
+根据以上分类，搜索近一两周内的A股新闻，尽量找出和参考中不同且符合定义的标的并分析入选原因及可能存在的风险，如果搜索的资讯如果是宏观没有具体个股的跳过,切忌一个标的在多个龙系中出现！！
+最后输出报告，标题是对最好题材的概括.
+'''.format(example=example)
+
+
+    logging.debug(f"[DEBUG]\n {prompt} \n Main started")
     client = ZAIChatClient()
     messages = [
         {
@@ -218,10 +213,33 @@ if __name__ == "__main__":
         print(chunk, end='', flush=True)
         full_response += chunk
     
-    print('\n\nChat completed.')
-    
-    # 将完整响应保存到 result.md 文件
-    with open('result.md', 'w', encoding='utf-8') as f:
-        f.write(full_response.split('{"name":"finish","arguments": {}}')[-1])
-    
-    print(f"\n响应已保存到 result.md 文件")
+    logging.info('\n\nChat completed.')
+    logging.debug('\n[DEBUG] 完整回复内容如下：\n', full_response)
+
+    # ======= 新增：抽取标题和正文 =======
+    def extract_title_and_notes(text):
+        lines = text.strip().split('\n')
+        # 优先找以#、##、###、标题:开头的行
+        for line in lines:
+            l = line.strip()
+            if l.startswith('#'):
+                return l.lstrip('#').strip(), text
+            if l.startswith('标题：') or l.startswith('标题:'):
+                return l.split('：',1)[-1].strip(), text
+        # 否则用前30字
+        return text.strip()[:30], text
+
+    # 处理大模型输出，去除 finish 标记
+    content = full_response.split('{"name":"finish","arguments": {}}')[1].strip()
+    if not isinstance(content, str):
+        content = str(content)
+    name, notes = extract_title_and_notes(content)
+    logging.debug(f"[DEBUG] 抽取标题: {name}")
+
+    fields = {
+        "Name": name,
+        "Notes": notes,
+        "Status": "Done"
+    }
+
+    table.create(fields)
