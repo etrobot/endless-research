@@ -1,8 +1,74 @@
 import requests
 import json,uuid
-import re
+import re,os
 from datetime import datetime
 from typing import Generator
+
+
+example=''
+if os.path.exists("result.md"):
+    with open("result.md", "r", encoding="utf-8") as f:
+        example = f.read()
+    print("[DEBUG] 成功读取 result.md 作为 example")
+
+prompt='''
+A股对不同类型龙头股有细分化的“龙系”术语体系，以下是基于市场规律和搜索结果整理的完整分类：
+
+一、按周期属性划分
+
+1. 穿越龙
+需跨越至少两个情绪周期（如高潮→冰点→新周期），具有抗跌性和市场地位重塑能力。例如断板后仍逆势连板。
+
+2. 补涨龙
+总龙头断板后出现的梯队接力股，通常具有位差优势但缺乏独立性。
+
+3. 活口龙
+旧周期退潮中未完全陨落的过渡性标的，常以N型反包形态出现。
+
+二、按市场地位划分
+
+4. 总龙头
+阶段性绝对核心，具备板块带动效应。
+
+5. 卡位龙
+在旧龙头分歧时迅速接力的新标的，常见于题材切换期
+
+6. 日内龙
+单日领涨的先锋股，多为资金情绪试探选择
+
+三、按驱动因素划分
+
+7. 行业龙
+行业绝对领导者
+
+8. 概念龙
+题材炒作核心
+
+9. 趋势龙
+依托基本面长周期走强
+
+四、技术形态划分
+
+10. 换手龙
+通过充分换手走强
+
+11. 一字龙
+连续一字涨停的通道党标的
+
+五、特殊阶段产物
+
+12. 反核龙
+地天板逆转情绪的标的
+
+13. 破局龙
+打破市场高度压制的品种
+
+{example}
+
+根据以上分类，搜索近一两周内的A股热点新闻，找出符合定义的标的并分析
+'''.format(example)
+
+
 
 class ZAIChatClient:
     def __init__(self, base_url="https://chat.z.ai"):
@@ -88,28 +154,25 @@ class ZAIChatClient:
                         data = json.loads(decoded_line[6:])
                         try:
                             content = data['data']['data']['content']
-                            # Remove <summary>...</summary> and their content
-                            # Remove <summary>...</summary> and their content
+                            # 移除HTML标签
                             content = re.sub(r'<summary.*?>.*?</summary>', '', content, flags=re.DOTALL)
-                            # Remove any remaining HTML tags
                             text = re.sub(r'<[^>]+>', '', content)
+                            
+                            # 文本清理流程
+                            # 1. 处理换行
+                            text = re.sub(r'\s*\n\s*', '\n', text)
+                            
+                            # 2. 移除中文字符之间的空格
+                            text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
+                            
+                            # 3. 处理标点符号
+                            text = re.sub(r'\s*([，。！？；：""''（）【】《》])\s*', r'\1', text)  # 中文标点
+                            text = re.sub(r'\s*([,.!?;:"\'\\(\\)\\[\\]<>])\s*', r'\1 ', text)  # 英文标点
+                            
+                            # 4. 最后处理多余空格
+                            text = re.sub(r'\s{2,}', ' ', text)
+                            text = text.strip()
 
-                            # 完整的文本清理流程
-                            # 1. 先处理所有大于号
-                            text = re.sub(r'>\s*', '', text)  # 去除所有大于号及其后的空格
-
-                            # 2. 处理换行和空格
-                            text = re.sub(r'\s*\n\s*', ' ', text)  # 换行符替换为单个空格
-                            text = re.sub(r'\s{2,}', ' ', text)  # 多个连续空格替换为单个空格
-
-                            # 3. 处理中文标点符号
-                            text = re.sub(r'([，。！？；：""''（）【】《》])[\s]+', r'\1', text)  # 中文标点后的空格去除
-
-                            # 4. 处理英文标点符号
-                            text = re.sub(r'([,.!?;:\"\'\\(\\)\\[\\]<>])[\s]+', r'\1 ', text)  # 英文标点后保留一个空格
-
-                            # 5. 处理中文词语之间的空格 - 关键改进
-                            text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)  # 移除中文字符之间的空格
                             # Handle cases where the model might restart or modify previous content
                             # Find the longest common prefix
                             i = 0
@@ -143,7 +206,7 @@ if __name__ == "__main__":
     messages = [
         {
             'role': 'user',
-            'content': '研究下A股近期寻龙思路和热门题材和标的'
+            'content': prompt
         }
     ]
     
@@ -159,6 +222,6 @@ if __name__ == "__main__":
     
     # 将完整响应保存到 result.md 文件
     with open('result.md', 'w', encoding='utf-8') as f:
-        f.write(full_response)
+        f.write(full_response.split('{"name":"finish","arguments": {}}')[-1])
     
     print(f"\n响应已保存到 result.md 文件")
