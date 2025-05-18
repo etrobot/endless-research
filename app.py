@@ -21,19 +21,16 @@ class ZAIChatClient:
         self.base_url = base_url
         self.headers = {
             'accept': '*/*',
-            'accept-language': 'zh-CN,zh-TW;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6,ja;q=0.5',
-            'authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQxNDQyZWU4LTBhMWItNDhhMi05NjU1LWYzMjkxMTdlZDRiMiJ9.G_c2_6hVJYycmqaJVk04ODKez1MjWcW-dqVYldjss-4',
+            'accept-language': 'zh-CN,zh;q=0.9',
+            'authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFhZGIyMmE0LWY5MWQtNDQ3My05MDc1LTU4NGIxZGM4NzZjMSJ9.xv3LC8T2ISFAvlbnUVvQPmbstorjNlN_Bto7mRL_Xns',
             'content-type': 'application/json',
             'origin': 'https://chat.z.ai',
             'priority': 'u=1, i',
             'referer': 'https://chat.z.ai/',
-            'sec-ch-ua': '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"macOS"',
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-origin',
-            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+            'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
         }
 
     def stream_chat_completion(self, messages: list, model: str = "deep-research") -> Generator[str, None, None]:
@@ -186,24 +183,26 @@ def mission():
         return text.strip()[:30], text
 
     # 处理大模型输出，去除 finish 标记
-    if '"name":"finish"' not in full_response:
-        raise Exception('not end')
-    else:
+    if '"name":"finish"'  in full_response:
         # 用正则查找所有 {"name":"finish" ... }} 作为分隔符
         splits = re.split(r'\{"name":"finish".*?\}\}', full_response)
         content = splits[-1].strip() if splits else ""
         if not isinstance(content, str):
             content = str(content)
-        name, notes = extract_title_and_notes(content)
-        logging.debug(f"[DEBUG] 抽取标题: {name}")
+    elif '\n> > # ' in full_response:
+        content = full_response.split('\n> > # ')[-1]
+    else:
+        raise('分割失败')
+    name, notes = extract_title_and_notes(content)
+    logging.debug(f"[DEBUG] 抽取标题: {name}")
 
-        fields = {
-            "Name": name,
-            "Notes": notes,
-            "Status": "Done"
-        }
-        table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
-        table.create(fields)
+    fields = {
+        "Name": name,
+        "Notes": notes,
+        "Status": "Done"
+    }
+    table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
+    table.create(fields)
 
 if __name__ == "__main__":
     mission()

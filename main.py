@@ -18,6 +18,8 @@ def dailyMission(max_retries = 10):
 
 
 if __name__ == "__main__":
+    mission()
+    exit()
     scheduler = BlockingScheduler(timezone=timezone('UTC'))
     try:
         scheduler.add_job(
