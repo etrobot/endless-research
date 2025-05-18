@@ -167,7 +167,7 @@ def mission():
         full_response += chunk
     
     logging.info('\n\nChat completed.')
-    logging.debug('\n[DEBUG] 完整回复内容如下：\n', full_response)
+    logging.debug(f'\n[DEBUG] 完整回复内容如下：\n{full_response}')
 
     # ======= 新增：抽取标题和正文 =======
     def extract_title_and_notes(text):
@@ -192,7 +192,8 @@ def mission():
         if not isinstance(content, str):
             content = str(content)
     else:
-        raise('分割失败')
+        raise ValueError("分割失败：未找到预期分隔符（ '\\n> > # ' 或 '\"name\":\"finish\"'），请检查 full_response 的输出格式。")
+    
     name, notes = extract_title_and_notes(content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
 
