@@ -186,19 +186,24 @@ def mission():
         return text.strip()[:30], text
 
     # 处理大模型输出，去除 finish 标记
-    content = full_response.split('{"name":"finish","arguments": {}}')[1].strip()
-    if not isinstance(content, str):
-        content = str(content)
-    name, notes = extract_title_and_notes(content)
-    logging.debug(f"[DEBUG] 抽取标题: {name}")
+    if '"name":"finish"' not in full_response:
+        raise Exception('not end')
+    else:
+        # 用正则查找所有 {"name":"finish" ... }} 作为分隔符
+        splits = re.split(r'\{"name":"finish".*?\}\}', full_response)
+        content = splits[-1].strip() if splits else ""
+        if not isinstance(content, str):
+            content = str(content)
+        name, notes = extract_title_and_notes(content)
+        logging.debug(f"[DEBUG] 抽取标题: {name}")
 
-    fields = {
-        "Name": name,
-        "Notes": notes,
-        "Status": "Done"
-    }
-    table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
-    table.create(fields)
+        fields = {
+            "Name": name,
+            "Notes": notes,
+            "Status": "Done"
+        }
+        table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
+        table.create(fields)
 
 if __name__ == "__main__":
     mission()
