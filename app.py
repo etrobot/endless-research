@@ -1,10 +1,14 @@
 import requests
 import json,uuid
-import re,os
+import re,os,random
 from datetime import datetime
 from typing import Generator
 from pyairtable import Table
 import logging
+import os, builtins
+
+if os.environ.get("ENV") == "prod":
+    builtins.print = lambda *args, **kwargs: None
 
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 AIRTABLE_KEY = os.environ.get('AIRTABLE_KEY') or 'YOUR_SECRET_API_TOKEN'
@@ -77,7 +81,7 @@ class ZAIChatClient:
             'id': str(uuid.uuid4())
         }
 
-        logging.debug("[DEBUG] Sending POST request to:", f'{self.base_url}/api/chat/completions')
+        logging.debug(f"[DEBUG] Sending POST request to: {self.base_url}/api/chat/completions")
         with requests.post(
             f'{self.base_url}/api/chat/completions',
             headers=self.headers,
@@ -99,21 +103,14 @@ class ZAIChatClient:
                             if isinstance(content, dict):
                                 content = json.dumps(content, ensure_ascii=False)
                             # 移除HTML标签
-                            content = re.sub(r'<summary.*?>.*?</summary>', '', content, flags=re.DOTALL)
+                            text = re.sub(r'<summary.*?>.*?</summary>', '', content, flags=re.DOTALL)
                             text = re.sub(r'<[^>]+>', '', content)
-                            
-                            # 文本清理流程
-                            # 1. 处理换行
-                            text = re.sub(r'\s*\n\s*', '\n', text)
-                            
-                            # 2. 移除中文字符之间的空格
+                            # 移除中文字符之间的空格
                             text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
-                            
-                            # 3. 处理标点符号
+                            # 处理标点符号
                             text = re.sub(r'\s*([，。！？；："“''（）【】《》])\s*', r'\1', text)  # 中文标点
                             text = re.sub(r'\s*([,.!?;:"\'\\(\\)\\[\\]<>])\s*', r'\1 ', text)  # 英文标点
-                            
-                            # 4. 最后处理多余空格
+                            # 最后处理多余空格
                             text = re.sub(r'\s{2,}', ' ', text)
                             text = text.strip()
 
@@ -145,56 +142,15 @@ class ZAIChatClient:
 
 # Example usage:
 def mission():
-    example = '无'
-    table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
-    records = table.all(sort=["-Created"], max_records=1)
-    if records and 'fields' in records[0] and 'Notes' in records[0]['fields']:
-        example = records[0]['fields']['Notes']
-        logging.debug('成功从Airtable获取example')
-    else:
-        logging.debug('Airtable无有效记录，example为空')
+    refs = Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, 'prompt').all(fields=["Name", "Notes"])
+    random_refs ='\n'.join(x['fields']['Name']+':'+x['fields']['Notes'] for x in random.sample(refs, 5))
 
-    prompt = '''
-A股对不同类型龙头股有细分化的"龙系"术语体系，以下是基于市场规律和搜索结果整理的完整分类：
-一、按周期属性划分
-1. 穿越龙
-需跨越至少两个情绪周期（如高潮→冰点→新周期），具有抗跌性和市场地位重塑能力。例如断板后仍逆势连板。
-2. 补涨龙
-总龙头断板后出现的梯队接力股，通常具有位差优势但缺乏独立性。
-3. 活口龙
-旧周期退潮中未完全陨落的过渡性标的，常以N型反包形态出现。
-二、按市场地位划分
-4. 总龙头
-阶段性绝对核心，具备板块带动效应。
-5. 卡位龙
-在旧龙头分歧时迅速接力的新标的，常见于题材切换期
-6. 日内龙
-单日领涨的先锋股，多为资金情绪试探选择
-三、按驱动因素划分
-7. 行业龙
-行业绝对领导者
-8. 概念龙
-题材炒作核心
-9. 趋势龙
-依托基本面长周期走强
-四、情绪划分
-10. 换手龙
-通过充分换手走强
-11. 一字龙
-连续一字涨停的通道党标的
-五、特殊阶段产物
-12. 反核龙
-地天板逆转情绪的标的
-13. 破局龙
-打破市场高度压制的品种
-
-参考：
-{example}
-
-根据以上分类，搜索近一两周内的A股新闻，尽量找出和参考中不同且符合定义的标的并分析入选原因及可能存在的风险，如果搜索的资讯如果是宏观没有具体个股的跳过,切忌一个标的在多个龙系中出现！！
-最后输出标的报告（重点是个股，不需要重复解释龙的概念和寻龙理念，不需要标出引用，但个股要加粗！），标题是对最好题材的概括.
-'''.format(example=example)
-
+    prompt = random_refs+'''
+搜索近一两周内的A股新闻，尽量找出符合定义的标的并分析入选原因及可能存在的风险，如果搜索的资讯如果是宏观没有具体个股的跳过
+切忌一个标的反复讲解！！
+最后输出标的报告（重点是个股，不需要重复解释龙的概念和寻龙理念，不需要标出引用，但个股要加粗！）
+标题要有新闻感，突出内容中精彩的部份
+'''
 
     logging.debug(f"[DEBUG]\n {prompt} \n Main started")
     client = ZAIChatClient()
@@ -241,5 +197,8 @@ A股对不同类型龙头股有细分化的"龙系"术语体系，以下是基�
         "Notes": notes,
         "Status": "Done"
     }
-
+    table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
     table.create(fields)
+
+if __name__ == "__main__":
+    mission()
