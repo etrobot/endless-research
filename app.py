@@ -183,14 +183,14 @@ def mission():
         return text.strip()[:30], text
 
     # 处理大模型输出，去除 finish 标记
-    if '"name":"finish"'  in full_response:
+    if '\n> > # ' in full_response:
+        content = full_response.split('\n> > # ')[-1]
+    elif '"name":"finish"'  in full_response:
         # 用正则查找所有 {"name":"finish" ... }} 作为分隔符
         splits = re.split(r'\{"name":"finish".*?\}\}', full_response)
         content = splits[-1].strip() if splits else ""
         if not isinstance(content, str):
             content = str(content)
-    elif '\n> > # ' in full_response:
-        content = full_response.split('\n> > # ')[-1]
     else:
         raise('分割失败')
     name, notes = extract_title_and_notes(content)
