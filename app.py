@@ -172,15 +172,25 @@ def mission():
     # ======= 新增：抽取标题和正文 =======
     def extract_title_and_notes(text):
         lines = text.strip().split('\n')
-        # 优先找以#、##、###、标题:开头的行
+        # 优先找以 #、##、###、标题: 开头的行，并去除其中的 markdown 符号
         for line in lines:
             l = line.strip()
             if l.startswith('#'):
-                return l.lstrip('#').strip(), text
+                title = l.lstrip('#').strip()
+                # 移除 title 中可能存在的其他 markdown 符号
+                for symbol in ['*', '_', '`']:
+                    title = title.replace(symbol, '')
+                return title, text
             if l.startswith('标题：') or l.startswith('标题:'):
-                return l.split('：',1)[-1].strip(), text
-        # 否则用前30字
-        return text.strip()[:30], text
+                title = l.split('：', 1)[-1].strip()
+                for symbol in ['*', '_', '`']:
+                    title = title.replace(symbol, '')
+                return title, text
+        # 否则用前30个字符作为标题，并移除其中的 markdown 符号
+        default_title = text.strip()[:30]
+        for symbol in ['#', '*', '_', '`']:
+            default_title = default_title.replace(symbol, '')
+        return default_title, text
 
     # 处理大模型输出，去除 finish 标记
     if '\n> > # ' in full_response:
