@@ -114,11 +114,6 @@ class ZAIChatClient:
                             text = re.sub(r'<[^>]+>', '', content)
                             # 移除中文字符之间的空格
                             text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
-                            # 处理标点符号
-                            text = re.sub(r'\s*([，。！？；："“''（）【】《》])\s*', r'\1', text)  # 中文标点
-                            text = re.sub(r'\s*([,.!?;:"\'\\(\\)\\[\\]<>])\s*', r'\1 ', text)  # 英文标点
-                            # 最后处理多余空格
-                            text = re.sub(r'\s{2,}', ' ', text)
                             text = text.strip()
                             # Handle cases where the model might restart or modify previous content
                             # Find the longest common prefix
@@ -172,7 +167,7 @@ def mission():
 # 炸板回封！超预期暗藏分歧信号！
 "或者"
 # 破局！这一板块或将成为新主线？
-"等，突出内容中精彩的部份
+"等，突出内容中精彩的部份，但不能无中生有！没有精彩部分就如实总结。
 '''
 
     logging.debug(f"[DEBUG]\n {prompt} \n Main started")
@@ -228,6 +223,13 @@ def mission():
 
     name, notes = extract_title_and_notes(content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
+
+    max_title_length = 50  # 设置标题最大允许长度
+    logging.debug(f"[DEBUG] 检查标题长度：输入标题为 '{name}', 长度为 {len(name)}, 最大允许长度为 {max_title_length}")
+    if len(name) > max_title_length:
+        error_msg = f"标题太长，当前长度 {len(name)} 超过最大允许长度 {max_title_length}：{name}"
+        logging.error(f"[ERROR] {error_msg}")
+        raise ValueError(error_msg)
 
     fields = {
         "Name": name,
