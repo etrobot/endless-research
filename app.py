@@ -232,7 +232,7 @@ def mission():
     # 使用 <summary>Thought for xx seconds</summary> 标签后的内容作为回复的主要内容，其中秒数是不固定的
     # splits = re.split(r'<summary>Thought for \d+ seconds</summary>', full_response)
     # content = splits[-1].strip()
-    content=full_response.split(' seconds</summary> # ')[1]
+    content=full_response.split(' seconds</summary>\n# ')[1]
     if not isinstance(content, str):
         content = str(content)
 
