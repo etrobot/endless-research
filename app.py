@@ -16,13 +16,28 @@ AIRTABLE_BASE_ID = 'applo1KcfFekTkIAU'
 AIRTABLE_TABLE_NAME = 'ashare'
 
 
+def get_bearer_token_from_airtable_cookie():
+    table = Table(AIRTABLE_KEY, AIRTABLE_BASE_ID, 'cookies')
+    records = table.all(fields=["value"])
+    if not records:
+        raise Exception("No cookie records found in Airtable!")
+    cookie_str = records[0]['fields']['value']
+    logging.debug(f"[DEBUG] Airtable cookies string: {cookie_str[:80]}...")
+    m = re.search(r'token=([^;]+)', cookie_str)
+    if not m:
+        raise Exception("token not found in cookie string!")
+    bearer_token = m.group(1)
+    logging.debug(f"[DEBUG] 提取到的bearer token: {bearer_token[:20]}...")
+    return cookie_str,bearer_token
+
 class ZAIChatClient:
     def __init__(self, base_url="https://chat.z.ai"):
         self.base_url = base_url
+        cookie_str,bearer_token = get_bearer_token_from_airtable_cookie()
         self.headers = {
             'accept': '*/*',
             'accept-language': 'zh-CN,zh;q=0.9',
-            'authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFhZGIyMmE0LWY5MWQtNDQ3My05MDc1LTU4NGIxZGM4NzZjMSJ9.xv3LC8T2ISFAvlbnUVvQPmbstorjNlN_Bto7mRL_Xns',
+            'authorization': f'Bearer {bearer_token}',
             'content-type': 'application/json',
             'origin': 'https://chat.z.ai',
             'priority': 'u=1, i',
@@ -30,6 +45,7 @@ class ZAIChatClient:
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-origin',
+            'cookies':cookie_str,
             'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
         }
 
@@ -114,7 +130,6 @@ class ZAIChatClient:
                             text = re.sub(r'<[^>]+>', '', content)
                             # 移除中文字符之间的空格
                             text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
-                            text = text.strip()
                             # Handle cases where the model might restart or modify previous content
                             # Find the longest common prefix
                             i = 0
@@ -159,15 +174,15 @@ def mission():
 
     prompt = random_refs+'''
 搜索近一两周内的A股新闻，尽量找出符合定义的标的并分析入选原因及可能存在的风险，如果搜索的资讯如果是宏观没有具体个股的跳过
-切忌一个标的反复讲解！！如果实在没有符合定义的标的就如实回答！！
+切忌一个标的反复讲解！！如果实在没有符合定义的标的就回答没有符合定义的个股！！股票代码是6位的如6xxxxx,3xxxxx和0xxxxxx，请注意位数！！
 最后输出标的报告（重点是个股，不需再解释龙的概念和寻龙理念，不需要标出引用，但个股要加粗！）
 报告要有一个新闻感的标题，比如"
-# 有妖气！打破七板压制！警惕极端走势！
+# 有妖气！打破压制！警惕极端走势！
 "或者"
-# 炸板回封！超预期暗藏分歧信号！
+# 超预期暗藏分歧信号！
 "或者"
 # 破局！这一板块或将成为新主线？
-"等，突出内容中精彩的部份，但不能无中生有！没有精彩部分就如实总结。
+"等，突出内容中精彩的部份，但不能无中生有当天的走势，比如捏造涨停、地天板等！没有精彩部分就如实总结。
 '''
 
     logging.debug(f"[DEBUG]\n {prompt} \n Main started")
