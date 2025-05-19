@@ -13,11 +13,17 @@ def dailyMission(max_retries = 10):
             break
         except Exception as e:
             print(f"dailyMission 第{attempt}次执行失败: {e}")
+            logging.error(f"[ERROR] dailyMission 执行失败，尝试次数: {attempt}，异常详情: {e}")
+            logging.info(f"[INFO] 当前异常后将休息 60 秒（休息一分钟）再进行下一次尝试，尝试次数: {attempt}")
+            __import__('time').sleep(60)
             if attempt == max_retries:
                 print("重试次数已达10次，退出！")
 
 
 if __name__ == "__main__":
+    if os.getenv('TESTING'):
+        mission()
+        exit()
     scheduler = BlockingScheduler(timezone=timezone('UTC'))
     try:
         scheduler.add_job(

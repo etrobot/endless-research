@@ -36,11 +36,11 @@ class ZAIChatClient:
     def stream_chat_completion(self, messages: list, model: str = "deep-research") -> Generator[str, None, None]:
         """
         Stream chat completion from ZAI API
-        
+
         Args:
             messages: List of message dictionaries with role and content
             model: Model to use for completion
-            
+
         Yields:
             Generator that yields chunks of the response
         """
@@ -79,6 +79,9 @@ class ZAIChatClient:
         }
 
         logging.debug(f"[DEBUG] Sending POST request to: {self.base_url}/api/chat/completions")
+        # 创建一个集合来存储HTML标签
+        html_tags = set()
+
         with requests.post(
             f'{self.base_url}/api/chat/completions',
             headers=self.headers,
@@ -99,8 +102,15 @@ class ZAIChatClient:
                             content = data['data']['data']['content']
                             if isinstance(content, dict):
                                 content = json.dumps(content, ensure_ascii=False)
-                            # 移除HTML标签
+                            # 收集HTML标签并移除它们
+                            # 首先处理特殊的summary标签及其内容
+                            summary_tags = re.findall(r'<summary.*?>.*?</summary>', content, flags=re.DOTALL)
                             text = re.sub(r'<summary.*?>.*?</summary>', '', content, flags=re.DOTALL)
+
+                            # 然后处理其他HTML标签
+                            other_tags = re.findall(r'<[^>]+>', content)
+                            for tag in other_tags:
+                                html_tags.add(tag)
                             text = re.sub(r'<[^>]+>', '', content)
                             # 移除中文字符之间的空格
                             text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
@@ -110,13 +120,12 @@ class ZAIChatClient:
                             # 最后处理多余空格
                             text = re.sub(r'\s{2,}', ' ', text)
                             text = text.strip()
-
                             # Handle cases where the model might restart or modify previous content
                             # Find the longest common prefix
                             i = 0
                             while i < min(len(last_output), len(text)) and last_output[i] == text[i]:
                                 i += 1
-                            
+
                             # If text is completely different or shorter than last_output
                             # (model might have restarted or modified content)
                             if i < len(last_output) * 0.8:  # Less than 80% match
@@ -127,15 +136,26 @@ class ZAIChatClient:
                             else:
                                 # Normal incremental update
                                 new_text = text[i:]
-                            
+
                             last_output = text
-                            
+
                             # Detect and handle duplicates in the stream
                             if new_text and not output_buffer.endswith(new_text):
                                 output_buffer += new_text
+                                for tag in summary_tags:
+                                    if tag not in html_tags:
+                                        html_tags.add(tag)
+                                        new_text += tag
                                 yield new_text
                         except Exception as e:
                             logging.error(f"Failed to extract content: {e}")
+                    else:
+                        print(decoded_line)
+            # 在处理完所有响应后，打印收集到的HTML标签
+            if html_tags:
+                logging.info("\n[INFO] 收集到的HTML标签:")
+                for tag in sorted(html_tags):
+                    logging.info(f"  {tag}")
 
 # Example usage:
 def mission():
@@ -145,8 +165,14 @@ def mission():
     prompt = random_refs+'''
 搜索近一两周内的A股新闻，尽量找出符合定义的标的并分析入选原因及可能存在的风险，如果搜索的资讯如果是宏观没有具体个股的跳过
 切忌一个标的反复讲解！！
-最后输出标的报告（重点是个股，不需要重复解释龙的概念和寻龙理念，不需要标出引用，但个股要加粗！）
-报告要有一个新闻感的标题，比如“\n# 有妖气！打破七板压制！警惕极端走势！\n”或者“\n# 炸板回封！超预期暗藏分歧信号！\n”或者“\n# 破局！这一板块或将成为新主线？\n”等，突出内容中精彩的部份
+最后输出标的报告（重点是个股，不需再解释龙的概念和寻龙理念，不需要标出引用，但个股要加粗！）
+报告要有一个新闻感的标题，比如"
+# 有妖气！打破七板压制！警惕极端走势！
+"或者"
+# 炸板回封！超预期暗藏分歧信号！
+"或者"
+# 破局！这一板块或将成为新主线？
+"等，突出内容中精彩的部份
 '''
 
     logging.debug(f"[DEBUG]\n {prompt} \n Main started")
@@ -157,17 +183,17 @@ def mission():
             'content': prompt
         }
     ]
-    
+
     # 用于保存完整响应的变量
     full_response = ""
-    
+
     # 流式输出并收集完整响应
     for chunk in client.stream_chat_completion(messages):
         print(chunk, end='', flush=True)
         full_response += chunk
-    
+
     logging.info('\n\nChat completed.')
-    logging.debug(f'\n[DEBUG] 完整回复内容如下：\n{full_response}')
+    # logging.debug(f'\n[DEBUG] 完整回复内容如下：\n{full_response}')
 
     # ======= 新增：抽取标题和正文 =======
     def extract_title_and_notes(text):
@@ -193,23 +219,19 @@ def mission():
         return default_title, text
 
     # 处理大模型输出，去除 finish 标记
-    if '\n> > # ' in full_response:
-        content = full_response.split('\n> > # ')[-1]
-    elif '"name":"finish"'  in full_response:
-        # 用正则查找所有 {"name":"finish" ... }} 作为分隔符
-        splits = re.split(r'\{"name":"finish".*?\}\}', full_response)
-        content = splits[-1].strip() if splits else ""
-        if not isinstance(content, str):
-            content = str(content)
-    else:
-        raise ValueError("分割失败：未找到预期分隔符（ '\\n> > # ' 或 '\"name\":\"finish\"'），请检查 full_response 的输出格式。")
-    
+    # 使用 <summary>Thought for xx seconds</summary> 标签后的内容作为回复的主要内容，其中秒数是不固定的
+    # splits = re.split(r'<summary>Thought for \d+ seconds</summary>', full_response)
+    # content = splits[-1].strip()
+    content=full_response.split(' seconds</summary> # ')[1]
+    if not isinstance(content, str):
+        content = str(content)
+
     name, notes = extract_title_and_notes(content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
 
     fields = {
         "Name": name,
-        "Notes": notes,
+        "Notes": notes.split(name)[1],
         "Status": "Done"
     }
     table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
