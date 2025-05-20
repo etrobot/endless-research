@@ -122,6 +122,8 @@ class ZAIChatClient:
                             # 首先处理特殊的summary标签及其内容
                             summary_tags = re.findall(r'<summary.*?>.*?</summary>', content, flags=re.DOTALL)
                             text = re.sub(r'<summary.*?>.*?</summary>', '', content, flags=re.DOTALL)
+                            if text != '\n':
+                                text = text.strip()
 
                             # 然后处理其他HTML标签
                             other_tags = re.findall(r'<[^>]+>', content)
@@ -239,7 +241,7 @@ def mission():
     name, notes = extract_title_and_notes(content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
 
-    max_title_length = 50  # 设置标题最大允许长度
+    max_title_length = 50  # 设置标题最大允许长度  
     logging.debug(f"[DEBUG] 检查标题长度：输入标题为 '{name}', 长度为 {len(name)}, 最大允许长度为 {max_title_length}")
     if len(name) > max_title_length:
         error_msg = f"标题太长，当前长度 {len(name)} 超过最大允许长度 {max_title_length}：{name}"
