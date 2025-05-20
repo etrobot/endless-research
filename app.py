@@ -41,7 +41,7 @@ class ZAIChatClient:
             'content-type': 'application/json',
             'origin': 'https://chat.z.ai',
             'priority': 'u=1, i',
-            'referer': 'https://chat.z.ai/',
+            'referer': 'https://chat.z.ai/',  
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-origin',
@@ -151,7 +151,7 @@ class ZAIChatClient:
 
                             # Detect and handle duplicates in the stream
                             if new_text and not output_buffer.endswith(new_text):
-                                if new_text != '\n' and new_text != '\n\n':
+                                if not new_text.ends_with('\n\n'):  
                                     new_text = new_text.strip('\n')
                                 output_buffer += new_text
                                 for tag in summary_tags:
