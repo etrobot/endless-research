@@ -122,8 +122,6 @@ class ZAIChatClient:
                             # 首先处理特殊的summary标签及其内容
                             summary_tags = re.findall(r'<summary.*?>.*?</summary>', content, flags=re.DOTALL)
                             text = re.sub(r'<summary.*?>.*?</summary>', '', content, flags=re.DOTALL)
-                            if text != '\n':
-                                text = text.strip()
 
                             # 然后处理其他HTML标签
                             other_tags = re.findall(r'<[^>]+>', content)
@@ -153,6 +151,8 @@ class ZAIChatClient:
 
                             # Detect and handle duplicates in the stream
                             if new_text and not output_buffer.endswith(new_text):
+                                if new_text != '\n':
+                                    new_text = new_text.strip('\n')
                                 output_buffer += new_text
                                 for tag in summary_tags:
                                     if tag not in html_tags:
@@ -176,7 +176,8 @@ def mission():
 
     prompt = random_refs+'''
 搜索近一两周内的A股新闻，尽量找出符合定义的标的并分析入选原因及可能存在的风险，如果搜索的资讯如果是宏观没有具体个股的跳过
-切忌一个标的反复讲解！！如果实在没有符合定义的标的就回答没有符合定义的个股！！股票代码是6位的如6xxxxx,3xxxxx和0xxxxx，请注意位数！！
+切忌一个标的反复讲解！！如果实在没有符合定义的标的就回答没有符合定义的个股！！
+股票代码是6位的如6xxxxx,3xxxxx和0xxxxx，不能自己虚拟代码！一定要搜索结果里面提取代码！
 最后输出标的报告（重点是个股，不需再解释龙的概念和寻龙理念，不需要标出引用，但个股要加粗！）
 报告要有一个新闻感的标题，比如"
 # 有妖气！打破压制！警惕极端走势！
@@ -234,23 +235,16 @@ def mission():
     # 使用 <summary>Thought for xx seconds</summary> 标签后的内容作为回复的主要内容，其中秒数是不固定的
     # splits = re.split(r'<summary>Thought for \d+ seconds</summary>', full_response)
     # content = splits[-1].strip()
-    content=full_response.split(' seconds</summary>\n# ')[1]
+    content=full_response.split(' seconds</summary># ')[1]
     if not isinstance(content, str):
-        content = str(content)
+        content = '# '+str(content)
 
     name, notes = extract_title_and_notes(content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
 
-    max_title_length = 50  # 设置标题最大允许长度  
-    logging.debug(f"[DEBUG] 检查标题长度：输入标题为 '{name}', 长度为 {len(name)}, 最大允许长度为 {max_title_length}")
-    if len(name) > max_title_length:
-        error_msg = f"标题太长，当前长度 {len(name)} 超过最大允许长度 {max_title_length}：{name}"
-        logging.error(f"[ERROR] {error_msg}")
-        raise ValueError(error_msg)
-
     fields = {
         "Name": name,
-        "Notes": notes.split(name)[1],
+        "Notes": notes,
         "Status": "Done"
     }
     table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
