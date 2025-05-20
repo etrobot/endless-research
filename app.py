@@ -151,8 +151,10 @@ class ZAIChatClient:
 
                             # Detect and handle duplicates in the stream
                             if new_text and not output_buffer.endswith(new_text):
-                                if not new_text.ends_with('\n\n'):  
-                                    new_text = new_text.strip('\n')
+                                new_text = new_text.rstrip('\n')
+                                if new_text.startswith('\n'): 
+                                     new_text = '\n'+ next_text
+
                                 output_buffer += new_text
                                 for tag in summary_tags:
                                     if tag not in html_tags:
