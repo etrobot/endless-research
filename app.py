@@ -151,9 +151,8 @@ class ZAIChatClient:
 
                             # Detect and handle duplicates in the stream
                             if new_text and not output_buffer.endswith(new_text):
-                                new_text = new_text.rstrip('\n')
-                                if new_text.startswith('\n'):
-                                     new_text = '\n'+ new_text
+                                if os.getenv('TESTING'):
+                                    new_text = new_text.rstrip('\n')
                                 output_buffer += new_text
                                 for tag in summary_tags:
                                     if tag not in html_tags:
@@ -172,21 +171,9 @@ class ZAIChatClient:
 
 # Example usage:
 def mission():
-    refs = Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, 'prompt').all(fields=["Name", "Notes"])
+    refs = Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, 'prompt').all(fields=["Name", "Notes"],formula=f"{{status}} = 'Done'")
     random_refs ='\n'.join(x['fields']['Name']+':'+x['fields']['Notes'] for x in random.sample(refs, 5))
-
-    prompt = random_refs+'''
-搜索近一两周内的A股新闻，尽量找出符合定义的标的并分析入选原因及可能存在的风险，如果搜索的资讯如果是宏观没有具体个股的跳过
-切忌一个标的反复讲解！！如果实在没有符合定义的标的就回答没有符合定义的个股！！信息一定要真实！！
-股票代码是6位的如6xxxxx,3xxxxx和0xxxxx，不能自己虚拟代码！一定要搜索结果里面提取代码！
-最后输出标的报，报告一定要有一个新闻感的标题，比如"
-# 有妖气！打破压制！警惕极端走势！\n
-"或者"
-# 超预期暗藏分歧信号！\n
-"或者"
-# 破局！这一板块或将成为新主线？\n
-"等，突出内容中精彩的部份，但不能无中生有当天的走势，比如捏造涨停、地天板等！没有精彩部分就如实总结。
-'''
+    prompt = random_refs+'\n'+Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, 'prompt').all(fields=["Name", "Notes"],formula=f"{{status}} = 'Todo'")[0]['fields']['Notes']
 
     logging.debug(f"[DEBUG]\n {prompt} \n Main started")
     client = ZAIChatClient()
@@ -213,14 +200,10 @@ def mission():
     def extract_title_and_notes(text):
         # 提取第一个 # 到换行符之间的内容作为标题
         title_match = re.search(r'# (.*?)(?:\n|$)', text)
+        title = text
         if title_match:
             title = title_match.group(1).strip()
-        else:
-            # 如果没有找到标题，使用前30个字符
-            title = text.strip()[:30]
-
-        logging.debug(f"[DEBUG] 提取到的标题: {title}")
-        return title, text
+        return title[:30]
 
     # 处理大模型输出，去除 finish 标记
     # 使用 <summary>Thought for xx seconds</summary> 标签后的内容作为回复的主要内容，其中秒数是不固定的
@@ -230,12 +213,12 @@ def mission():
     if not isinstance(content, str):
         content = '# '+str(content)
 
-    name, notes = extract_title_and_notes(content)
+    name = extract_title_and_notes(content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
 
     fields = {
         "Name": name,
-        "Notes": notes,
+        "Notes": content,
         "Status": "Done"
     }
     table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
