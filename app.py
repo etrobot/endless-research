@@ -41,7 +41,7 @@ class ZAIChatClient:
             'content-type': 'application/json',
             'origin': 'https://chat.z.ai',
             'priority': 'u=1, i',
-            'referer': 'https://chat.z.ai/',  
+            'referer': 'https://chat.z.ai/',
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-origin',
@@ -152,9 +152,8 @@ class ZAIChatClient:
                             # Detect and handle duplicates in the stream
                             if new_text and not output_buffer.endswith(new_text):
                                 new_text = new_text.rstrip('\n')
-                                if new_text.startswith('\n'): 
-                                     new_text = '\n'+ next_text
-
+                                if new_text.startswith('\n'):
+                                     new_text = '\n'+ new_text
                                 output_buffer += new_text
                                 for tag in summary_tags:
                                     if tag not in html_tags:
@@ -181,11 +180,11 @@ def mission():
 切忌一个标的反复讲解！！如果实在没有符合定义的标的就回答没有符合定义的个股！！信息一定要真实！！
 股票代码是6位的如6xxxxx,3xxxxx和0xxxxx，不能自己虚拟代码！一定要搜索结果里面提取代码！
 最后输出标的报，报告一定要有一个新闻感的标题，比如"
-# 有妖气！打破压制！警惕极端走势！
+# 有妖气！打破压制！警惕极端走势！\n
 "或者"
-# 超预期暗藏分歧信号！
+# 超预期暗藏分歧信号！\n
 "或者"
-# 破局！这一板块或将成为新主线？
+# 破局！这一板块或将成为新主线？\n
 "等，突出内容中精彩的部份，但不能无中生有当天的走势，比如捏造涨停、地天板等！没有精彩部分就如实总结。
 '''
 
@@ -203,7 +202,8 @@ def mission():
 
     # 流式输出并收集完整响应
     for chunk in client.stream_chat_completion(messages):
-        print(chunk, end='', flush=True)
+        if os.getenv('TESTING'):
+            print(chunk, end='', flush=True)
         full_response += chunk
 
     logging.info('\n\nChat completed.')
@@ -211,32 +211,22 @@ def mission():
 
     # ======= 新增：抽取标题和正文 =======
     def extract_title_and_notes(text):
-        lines = text.strip().split('\n')
-        # 优先找以 #、##、###、标题: 开头的行，并去除其中的 markdown 符号
-        for line in lines:
-            l = line.strip()
-            if l.startswith('#'):
-                title = l.lstrip('#').strip()
-                # 移除 title 中可能存在的其他 markdown 符号
-                for symbol in ['*', '_', '`']:
-                    title = title.replace(symbol, '')
-                return title, text
-            if l.startswith('标题：') or l.startswith('标题:'):
-                title = l.split('：', 1)[-1].strip()
-                for symbol in ['*', '_', '`']:
-                    title = title.replace(symbol, '')
-                return title, text
-        # 否则用前30个字符作为标题，并移除其中的 markdown 符号
-        default_title = text.strip()[:30]
-        for symbol in ['#', '*', '_', '`']:
-            default_title = default_title.replace(symbol, '')
-        return default_title, text
+        # 提取第一个 # 到换行符之间的内容作为标题
+        title_match = re.search(r'# (.*?)(?:\n|$)', text)
+        if title_match:
+            title = title_match.group(1).strip()
+        else:
+            # 如果没有找到标题，使用前30个字符
+            title = text.strip()[:30]
+
+        logging.debug(f"[DEBUG] 提取到的标题: {title}")
+        return title, text
 
     # 处理大模型输出，去除 finish 标记
     # 使用 <summary>Thought for xx seconds</summary> 标签后的内容作为回复的主要内容，其中秒数是不固定的
     # splits = re.split(r'<summary>Thought for \d+ seconds</summary>', full_response)
     # content = splits[-1].strip()
-    content=full_response.split(' seconds</summary># ')[1]
+    content=full_response.split('\n\n# ')[1]
     if not isinstance(content, str):
         content = '# '+str(content)
 
@@ -250,6 +240,3 @@ def mission():
     }
     table =  Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
     table.create(fields)
-
-if __name__ == "__main__":
-    mission()
