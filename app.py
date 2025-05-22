@@ -7,14 +7,16 @@ from pyairtable import Table
 import logging
 import os, builtins
 
-if os.environ.get("ENV") == "prod":
+if not os.getenv('TESTING'):
     builtins.print = lambda *args, **kwargs: None
-
-logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
+    logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+else:
+    logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 AIRTABLE_KEY = os.environ.get('AIRTABLE_KEY') or 'YOUR_SECRET_API_TOKEN'
 AIRTABLE_BASE_ID = 'applo1KcfFekTkIAU'
 AIRTABLE_TABLE_NAME = 'ashare'
 
+FINAL=''
 
 def get_bearer_token_from_airtable_cookie():
     table = Table(AIRTABLE_KEY, AIRTABLE_BASE_ID, 'cookies')
@@ -120,8 +122,9 @@ class ZAIChatClient:
                                 content = json.dumps(content, ensure_ascii=False)
                             # 收集HTML标签并移除它们
                             # 首先处理特殊的summary标签及其内容
-                            summary_tags = re.findall(r'<summary.*?>.*?</summary>', content, flags=re.DOTALL)
-                            text = re.sub(r'<summary.*?>.*?</summary>', '', content, flags=re.DOTALL)
+                            summary_tag_patten = r'<summary.*?>.*?</summary>'
+                            summary_tags = re.findall(summary_tag_patten, content, flags=re.DOTALL)
+                            text = re.sub(summary_tag_patten, '', content, flags=re.DOTALL)
 
                             # 然后处理其他HTML标签
                             other_tags = re.findall(r'<[^>]+>', content)
@@ -129,7 +132,7 @@ class ZAIChatClient:
                                 html_tags.add(tag)
                             text = re.sub(r'<[^>]+>', '', content)
                             # 移除中文字符之间的空格
-                            text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
+                            # text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
                             # Handle cases where the model might restart or modify previous content
                             # Find the longest common prefix
                             i = 0
@@ -193,8 +196,8 @@ def mission():
             print(chunk, end='', flush=True)
         full_response += chunk
 
-    logging.info('\n\nChat completed.')
-    # logging.debug(f'\n[DEBUG] 完整回复内容如下：\n{full_response}')
+    logging.info('\n\nChat completed')
+    logging.debug(f'\n[DEBUG] 完整回复内容如下：\n{full_response}')
 
     # ======= 新增：抽取标题和正文 =======
     def extract_title_and_notes(text):
@@ -209,7 +212,7 @@ def mission():
     # 使用 <summary>Thought for xx seconds</summary> 标签后的内容作为回复的主要内容，其中秒数是不固定的
     # splits = re.split(r'<summary>Thought for \d+ seconds</summary>', full_response)
     # content = splits[-1].strip()
-    content=full_response.split('\n\n# ')[1]
+    content=full_response.split(' seconds</summary>\n# ')[1]
     if not isinstance(content, str):
         content = '# '+str(content)
 

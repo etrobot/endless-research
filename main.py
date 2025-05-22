@@ -4,7 +4,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from pytz import timezone
 
-def dailyMission(max_retries = 10):
+def dailyMission(max_retries = 5):
     for attempt in range(1, max_retries + 1):
         print(f"开始第{attempt}次执行 dailyMission")
         try:
@@ -13,11 +13,11 @@ def dailyMission(max_retries = 10):
             break
         except Exception as e:
             print(f"dailyMission 第{attempt}次执行失败: {e}")
-            logging.error(f"[ERROR] dailyMission 执行失败，尝试次数: {attempt}，异常详情: {e}")
-            logging.info(f"[INFO] 当前异常后将休息 60 秒（休息一分钟）再进行下一次尝试，尝试次数: {attempt}")
-            __import__('time').sleep(60)
+            rest_time=120
+            logging.error(f"[ERROR] dailyMission 执行失败，尝试次数: {attempt}，异常详情: {e},休息{rest_time}分钟再进行下一次尝试")
+            __import__('time').sleep(rest_time)
             if attempt == max_retries:
-                print("重试次数已达10次，退出！")
+                logging.info(f"重试次数已达{max_retries}次，退出！")
 
 
 if __name__ == "__main__":
