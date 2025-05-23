@@ -197,13 +197,13 @@ def mission():
         full_response += chunk
 
     logging.info('\n\nChat completed')
-    logging.debug(f'\n[DEBUG] 完整回复内容如下：\n{full_response}')
+    # logging.debug(f'\n[DEBUG] 完整回复内容如下：\n{full_response}')
 
     # ======= 新增：抽取标题和正文 =======
     def extract_title_and_notes(text):
+        title = text
         # 提取第一个 # 到换行符之间的内容作为标题
         title_match = re.search(r'# (.*?)(?:\n|$)', text)
-        title = text
         if title_match:
             title = title_match.group(1).strip()
         return title[:30]
@@ -212,11 +212,13 @@ def mission():
     # 使用 <summary>Thought for xx seconds</summary> 标签后的内容作为回复的主要内容，其中秒数是不固定的
     # splits = re.split(r'<summary>Thought for \d+ seconds</summary>', full_response)
     # content = splits[-1].strip()
-    content=full_response.split(' seconds</summary>\n# ')[1]
-    if not isinstance(content, str):
-        content = '# '+str(content)
+    try:
+        content=full_response.split(' seconds</summary>\n# ')[1]
+    except:
+        content=full_response.split('\n# ')[1]
+    logging.debug(f'\n[DEBUG] 抽取文章如下：\n{content}')
 
-    name = extract_title_and_notes(content)
+    name = extract_title_and_notes('# '+content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
 
     fields = {
