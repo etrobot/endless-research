@@ -218,16 +218,18 @@ def mission():
         content=full_response.split('\n# ')[1]
     logging.debug(f'\n[DEBUG] 抽取文章如下：\n{content}')
 
-    # ======= 新增：去除末尾重复链接，只保留第一个 =======
+    # ======= 新增：去除末尾重复链接，只保留最后一个 =======
     # 匹配 http/https 链接和 markdown 链接
     link_pattern = r'(https?://[\w\-./?%&=:#@]+|\[[^\]]+\]\([^)]+\))'
     links = list(re.finditer(link_pattern, content))
     if links:
-        first_link = links[0]
-        # 只保留第一个链接，去除其后所有链接
-        content_new = content[:first_link.end()]
-        # 检查第一个链接后是否还有内容（非链接）
-        rest = content[first_link.end():]
+        last_link = links[-1]
+        # 只保留最后一个链接，去除其前所有链接
+        content_new = content[:last_link.start()]
+        # 添加最后一个链接
+        content_new += content[last_link.start():last_link.end()]
+        # 检查最后一个链接后是否还有内容（非链接）
+        rest = content[last_link.end():]
         # 如果后面还有非链接内容，拼接上
         non_link_rest = re.sub(link_pattern, '', rest)
         content_new += non_link_rest
