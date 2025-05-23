@@ -218,6 +218,25 @@ def mission():
         content=full_response.split('\n# ')[1]
     logging.debug(f'\n[DEBUG] 抽取文章如下：\n{content}')
 
+    # ======= 新增：去除末尾重复链接，只保留第一个 =======
+    # 匹配 http/https 链接和 markdown 链接
+    link_pattern = r'(https?://[\w\-./?%&=:#@]+|\[[^\]]+\]\([^)]+\))'
+    links = list(re.finditer(link_pattern, content))
+    if links:
+        first_link = links[0]
+        # 只保留第一个链接，去除其后所有链接
+        content_new = content[:first_link.end()]
+        # 检查第一个链接后是否还有内容（非链接）
+        rest = content[first_link.end():]
+        # 如果后面还有非链接内容，拼接上
+        non_link_rest = re.sub(link_pattern, '', rest)
+        content_new += non_link_rest
+        logging.info(f"[INFO] 去重链接前: {content}")
+        logging.info(f"[INFO] 去重链接后: {content_new}")
+        content = content_new
+    else:
+        logging.info("[INFO] 未检测到链接，无需去重")
+
     name = extract_title_and_notes('# '+content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
 
