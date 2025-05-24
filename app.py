@@ -222,22 +222,42 @@ def mission():
     # 匹配 http/https 链接和 markdown 链接
     link_pattern = r'(https?://[\w\-./?%&=:#@]+|\[[^\]]+\]\([^)]+\))'
     links = list(re.finditer(link_pattern, content))
+    
     if links:
-        last_link = links[-1]
-        # 只保留最后一个链接，去除其前所有链接
-        content_new = content[:last_link.start()]
-        # 添加最后一个链接
-        content_new += content[last_link.start():last_link.end()]
-        # 检查最后一个链接后是否还有内容（非链接）
-        rest = content[last_link.end():]
-        # 如果后面还有非链接内容，拼接上
-        non_link_rest = re.sub(link_pattern, '', rest)
-        content_new += non_link_rest
-        logging.info(f"[INFO] 去重链接前: {content}")
-        logging.info(f"[INFO] 去重链接后: {content_new}")
+        # 用于存储处理后的内容
+        content_new = ""
+        # 用于记录已处理的链接
+        processed_links = set()
+        
+        for i, link_match in enumerate(links):
+            link = link_match.group(0)
+            # 如果是markdown链接，提取URL部分
+            if link.startswith('['):
+                url = re.search(r'\((.*?)\)', link).group(1)
+            else:
+                url = link
+                
+            if url in processed_links:
+                # 如果链接已存在，将当前链接转换为markdown格式
+                content_new += f"[{url}]({url})"
+            else:
+                # 如果是新链接，保持原样
+                content_new += link
+                processed_links.add(url)
+                
+            # 添加链接之间的文本
+            if i < len(links) - 1:
+                next_start = links[i + 1].start()
+                content_new += content[link_match.end():next_start]
+            else:
+                # 添加最后一个链接后的文本
+                content_new += content[link_match.end():]
+                
+        logging.info(f"[INFO] 处理链接前: {content}")
+        logging.info(f"[INFO] 处理链接后: {content_new}")
         content = content_new
     else:
-        logging.info("[INFO] 未检测到链接，无需去重")
+        logging.info("[INFO] 未检测到链接，无需处理")
 
     name = extract_title_and_notes('# '+content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
