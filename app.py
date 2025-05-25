@@ -220,44 +220,42 @@ def mission():
 
     # ======= 新增：去除末尾重复链接，只保留最后一个 =======
     # 匹配 http/https 链接和 markdown 链接
-    link_pattern = r'(https?://[\w\-./?%&=:#@]+|\[[^\]]+\]\([^)]+\))'
-    links = list(re.finditer(link_pattern, content))
-    
-    if links:
-        # 用于存储处理后的内容
-        content_new = ""
-        # 用于记录已处理的链接
-        processed_links = set()
-        
-        for i, link_match in enumerate(links):
-            link = link_match.group(0)
-            # 如果是markdown链接，提取URL部分
-            if link.startswith('['):
-                url = re.search(r'\((.*?)\)', link).group(1)
-            else:
-                url = link
-                
-            if url in processed_links:
-                # 如果链接已存在，将当前链接转换为markdown格式
-                content_new += f"[{url}]({url})"
-            else:
-                # 如果是新链接，保持原样
-                content_new += link
-                processed_links.add(url)
-                
-            # 添加链接之间的文本
-            if i < len(links) - 1:
-                next_start = links[i + 1].start()
-                content_new += content[link_match.end():next_start]
-            else:
-                # 添加最后一个链接后的文本
-                content_new += content[link_match.end():]
-                
+    link_pattern = r'(https?://[\w\-./?%&=:#@]+)'
+    # 记录链接出现的位置
+    link_pos = {}
+    for m in re.finditer(link_pattern, content):
+        url = m.group(0)
+        if url in link_pos:
+            link_pos[url].append((m.start(), m.end()))
+        else:
+            link_pos[url] = [(m.start(), m.end())]
+
+    # 只处理出现两次及以上的链接
+    if any(len(v) > 1 for v in link_pos.values()):
+        # 需要逐步构建新内容
+        new_content = ""
+        last_idx = 0
+        # 记录哪些链接已经被替换为markdown
+        replaced = set()
+        # 先把所有需要替换的区间找出来
+        replace_map = {}
+        for url, positions in link_pos.items():
+            if len(positions) > 1:
+                # 第一次出现的删掉
+                replace_map[positions[0]] = ""
+                # 第二次出现的替换为markdown
+                replace_map[positions[1]] = f"[{url}]({url})"
+        # 把所有区间按起始位置排序
+        all_ranges = sorted(replace_map.items(), key=lambda x: x[0][0])
+        for (start, end), rep in all_ranges:
+            new_content += content[last_idx:start] + rep
+            last_idx = end
+        new_content += content[last_idx:]
         logging.info(f"[INFO] 处理链接前: {content}")
-        logging.info(f"[INFO] 处理链接后: {content_new}")
-        content = content_new
+        logging.info(f"[INFO] 处理链接后: {new_content}")
+        content = new_content
     else:
-        logging.info("[INFO] 未检测到链接，无需处理")
+        logging.info("[INFO] 未检测到重复链接，无需处理")
 
     name = extract_title_and_notes('# '+content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
