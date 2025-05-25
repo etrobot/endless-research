@@ -180,8 +180,12 @@ class ZAIChatClient:
 
 # Example usage:
 def mission():
-    refs = Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, 'prompt').all(fields=["Name", "Notes"],formula=f"{{status}} = 'Done'")
-    random_refs ='\n'.join(x['fields']['Name']+':'+x['fields']['Notes'] for x in random.sample(refs, 5))
+    categories = ['周期','地位','归属','形态','博弈']
+    # 用当前小时数来决定选择哪个category
+    current_hour = datetime.now().hour
+    category = categories[current_hour % len(categories)]
+    refs = Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, 'prompt').all(fields=["Name", "Notes"],formula=f"{{Category}} = '{category}'")
+    random_refs ='\n'.join(x['fields']['Name']+':'+x['fields']['Notes'] for x in refs)
     prompt = random_refs+'\n'+Table(AIRTABLE_KEY,AIRTABLE_BASE_ID, 'prompt').all(fields=["Name", "Notes"],formula=f"{{status}} = 'Todo'")[0]['fields']['Notes']
 
     logging.debug(f"[DEBUG]\n {prompt} \n Main started")
