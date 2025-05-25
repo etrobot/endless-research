@@ -120,23 +120,29 @@ class ZAIChatClient:
                             content = data['data']['data']['content']
                             if isinstance(content, dict):
                                 content = json.dumps(content, ensure_ascii=False)
-                            # 收集HTML标签并移除它们
-                            # 首先处理特殊的summary标签及其内容
+                            # 先处理 <a href="...">xxx</a>，转成 markdown 链接
+                            def a_tag_to_md(m):
+                                href = m.group(1)
+                                text = m.group(2)
+                                return f"[{text}]({href})"
+                            content = re.sub(r'<a\s+href="([^"]+)"[^>]*>(.*?)</a>', a_tag_to_md, content, flags=re.DOTALL)
+
+                            # 处理 summary 标签
                             summary_tag_patten = r'<summary.*?>.*?</summary>'
                             summary_tags = re.findall(summary_tag_patten, content, flags=re.DOTALL)
-                            text = re.sub(summary_tag_patten, '', content, flags=re.DOTALL)
+                            content = re.sub(summary_tag_patten, '', content, flags=re.DOTALL)
 
-                            # 然后处理其他HTML标签
+                            # 处理其他HTML标签
                             other_tags = re.findall(r'<[^>]+>', content)
                             for tag in other_tags:
                                 html_tags.add(tag)
-                            text = re.sub(r'<[^>]+>', '', content)
+                            content = re.sub(r'<[^>]+>', '', content)
                             # 移除中文字符之间的空格
                             # text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
                             # Handle cases where the model might restart or modify previous content
                             # Find the longest common prefix
                             i = 0
-                            while i < min(len(last_output), len(text)) and last_output[i] == text[i]:
+                            while i < min(len(last_output), len(content)) and last_output[i] == content[i]:
                                 i += 1
 
                             # If text is completely different or shorter than last_output
@@ -144,13 +150,13 @@ class ZAIChatClient:
                             if i < len(last_output) * 0.8:  # Less than 80% match
                                 # Consider it a restart
                                 logging.debug("\n[DEBUG] Content restart detected")
-                                new_text = text
+                                new_text = content
                                 output_buffer = ""
                             else:
                                 # Normal incremental update
-                                new_text = text[i:]
+                                new_text = content[i:]
 
-                            last_output = text
+                            last_output = content
 
                             # Detect and handle duplicates in the stream
                             if new_text and not output_buffer.endswith(new_text):
