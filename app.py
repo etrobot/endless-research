@@ -137,10 +137,7 @@ class ZAIChatClient:
                             for tag in other_tags:
                                 html_tags.add(tag)
                             content = re.sub(r'<[^>]+>', '', content)
-                            # 移除中文字符之间的空格
-                            # text = re.sub(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])', r'\1\2', text)
-                            # Handle cases where the model might restart or modify previous content
-                            # Find the longest common prefix
+
                             i = 0
                             while i < min(len(last_output), len(content)) and last_output[i] == content[i]:
                                 i += 1
@@ -229,12 +226,12 @@ def mission():
     logging.debug(f'\n[DEBUG] 抽取文章如下：\n{content}')
 
     # ======= 新增：去除末尾重复链接，只保留最后一个 =======
-    # 匹配 http/https 链接和 markdown 链接
-    link_pattern = r'(https?://[\w\-./?%&=:#@]+)'
-    # 记录链接出现的位置
+    # 优化链接正则，避免误包含标点
+    link_pattern = r'(https?://[^\s\]\)\.,;:]+)'
     link_pos = {}
     for m in re.finditer(link_pattern, content):
         url = m.group(0)
+        logging.debug(f"[DEBUG] 匹配到链接: {url} at {m.start()}~{m.end()}")
         if url in link_pos:
             link_pos[url].append((m.start(), m.end()))
         else:
@@ -242,12 +239,8 @@ def mission():
 
     # 只处理出现两次及以上的链接
     if any(len(v) > 1 for v in link_pos.values()):
-        # 需要逐步构建新内容
         new_content = ""
         last_idx = 0
-        # 记录哪些链接已经被替换为markdown
-        replaced = set()
-        # 先把所有需要替换的区间找出来
         replace_map = {}
         for url, positions in link_pos.items():
             if len(positions) > 1:
@@ -255,9 +248,10 @@ def mission():
                 replace_map[positions[0]] = ""
                 # 第二次出现的替换为markdown
                 replace_map[positions[1]] = f"[{url}]({url})"
-        # 把所有区间按起始位置排序
+        # 按起始位置排序，防止区间错乱
         all_ranges = sorted(replace_map.items(), key=lambda x: x[0][0])
         for (start, end), rep in all_ranges:
+            logging.debug(f"[DEBUG] 替换区间: {start}~{end}, rep: {rep!r}, last_idx: {last_idx}")
             new_content += content[last_idx:start] + rep
             last_idx = end
         new_content += content[last_idx:]
