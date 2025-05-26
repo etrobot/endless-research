@@ -225,41 +225,6 @@ def mission():
         content=full_response.split('\n# ')[1]
     logging.debug(f'\n[DEBUG] 抽取文章如下：\n{content}')
 
-    # ======= 新增：去除末尾重复链接，只保留最后一个 =======
-    # 优化链接正则，避免误包含标点
-    link_pattern = r'(https?://[^\s\]\)\.,;:]+)'
-    link_pos = {}
-    for m in re.finditer(link_pattern, content):
-        url = m.group(0)
-        logging.debug(f"[DEBUG] 匹配到链接: {url} at {m.start()}~{m.end()}")
-        if url in link_pos:
-            link_pos[url].append((m.start(), m.end()))
-        else:
-            link_pos[url] = [(m.start(), m.end())]
-
-    # 只处理出现两次及以上的链接
-    if any(len(v) > 1 for v in link_pos.values()):
-        new_content = ""
-        last_idx = 0
-        replace_map = {}
-        for url, positions in link_pos.items():
-            if len(positions) > 1:
-                # 第一次出现的删掉
-                replace_map[positions[0]] = ""
-                # 第二次出现的替换为markdown
-                replace_map[positions[1]] = f"[{url}]({url})"
-        # 按起始位置排序，防止区间错乱
-        all_ranges = sorted(replace_map.items(), key=lambda x: x[0][0])
-        for (start, end), rep in all_ranges:
-            logging.debug(f"[DEBUG] 替换区间: {start}~{end}, rep: {rep!r}, last_idx: {last_idx}")
-            new_content += content[last_idx:start] + rep
-            last_idx = end
-        new_content += content[last_idx:]
-        logging.info(f"[INFO] 处理链接前: {content}")
-        logging.info(f"[INFO] 处理链接后: {new_content}")
-        content = new_content
-    else:
-        logging.info("[INFO] 未检测到重复链接，无需处理")
 
     name = extract_title_and_notes('# '+content)
     logging.debug(f"[DEBUG] 抽取标题: {name}")
