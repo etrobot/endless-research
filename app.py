@@ -9,7 +9,7 @@ import os, builtins
 
 if not os.getenv('TESTING'):
     builtins.print = lambda *args, **kwargs: None
-    logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+    logging.basicConfig(level=logging.WARNING, format='[%(levelname)s] %(message)s')
 else:
     logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 AIRTABLE_KEY = os.environ.get('AIRTABLE_KEY') or 'YOUR_SECRET_API_TOKEN'
